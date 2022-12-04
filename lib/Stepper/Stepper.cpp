@@ -4,8 +4,8 @@
 Stepper::Stepper(int16_t pin_1, int16_t pin_2, int16_t pin_3, int16_t pin_4)
 {
   // Initialize variables
-  step_act = 0;    
-  step_target = 0; 
+  step_act = 0;
+  step_target = 0;
   step_delay = 3000;
   step_next = micros() + step_delay;
 
@@ -61,7 +61,7 @@ bool Stepper::in_target()
 
 void Stepper::wait()
 {
-  while(!in_target())
+  while (!in_target())
   {
     handle();
   }
@@ -84,30 +84,31 @@ void Stepper::calibrate(int16_t range)
 
 void Stepper::step(int16_t step)
 {
-  switch (step & 0x3) {
-    default:
-      digitalWrite(motor_pin_1, HIGH);
-      digitalWrite(motor_pin_2, HIGH);
-      digitalWrite(motor_pin_3, LOW);
-      digitalWrite(motor_pin_4, LOW);
-      break;
-    case 1: 
-      digitalWrite(motor_pin_1, LOW);
-      digitalWrite(motor_pin_2, HIGH);
-      digitalWrite(motor_pin_3, HIGH);
-      digitalWrite(motor_pin_4, LOW);
-      break;
-    case 2: 
-      digitalWrite(motor_pin_1, LOW);
-      digitalWrite(motor_pin_2, LOW);
-      digitalWrite(motor_pin_3, HIGH);
-      digitalWrite(motor_pin_4, HIGH);
-      break;
-    case 3: 
-      digitalWrite(motor_pin_1, HIGH);
-      digitalWrite(motor_pin_2, LOW);
-      digitalWrite(motor_pin_3, LOW);
-      digitalWrite(motor_pin_4, HIGH);
-      break;
+  switch (step & 0x3)
+  {
+  default:
+    digitalWrite(motor_pin_1, HIGH);
+    digitalWrite(motor_pin_2, HIGH);
+    digitalWrite(motor_pin_3, LOW);
+    digitalWrite(motor_pin_4, LOW);
+    break;
+  case 1:
+    digitalWrite(motor_pin_1, LOW);
+    digitalWrite(motor_pin_2, HIGH);
+    digitalWrite(motor_pin_3, HIGH);
+    digitalWrite(motor_pin_4, LOW);
+    break;
+  case 2:
+    digitalWrite(motor_pin_1, LOW);
+    digitalWrite(motor_pin_2, LOW);
+    digitalWrite(motor_pin_3, HIGH);
+    digitalWrite(motor_pin_4, HIGH);
+    break;
+  case 3:
+    digitalWrite(motor_pin_1, HIGH);
+    digitalWrite(motor_pin_2, LOW);
+    digitalWrite(motor_pin_3, LOW);
+    digitalWrite(motor_pin_4, HIGH);
+    break;
   }
 }
