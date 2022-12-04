@@ -1,56 +1,62 @@
 #include <Arduino.h>
 #include "Stepper.h"
 
-Stepper::Stepper(int16_t motor_pin_1, int16_t motor_pin_2, int16_t motor_pin_3, int16_t motor_pin_4)
+Stepper::Stepper(int16_t pin_1, int16_t pin_2, int16_t pin_3, int16_t pin_4)
 {
-  this->step_act = 0;    
-  this->step_target = 0; 
-  this->step_delay = 2000;
-  this->step_next = micros() + this->step_delay;
+  // Initialize variables
+  step_act = 0;    
+  step_target = 0; 
+  step_delay = 3000;
+  step_next = micros() + step_delay;
 
   // Arduino pins for the motor control connection:
-  this->motor_pin_1 = motor_pin_1;
-  this->motor_pin_2 = motor_pin_2;
-  this->motor_pin_3 = motor_pin_3;
-  this->motor_pin_4 = motor_pin_4;
+  motor_pin_1 = pin_1;
+  motor_pin_2 = pin_2;
+  motor_pin_3 = pin_3;
+  motor_pin_4 = pin_4;
 
   // setup the pins on the microcontroller:
-  pinMode(this->motor_pin_1, OUTPUT);
-  pinMode(this->motor_pin_2, OUTPUT);
-  pinMode(this->motor_pin_3, OUTPUT);
-  pinMode(this->motor_pin_4, OUTPUT);
+  pinMode(motor_pin_1, OUTPUT);
+  pinMode(motor_pin_2, OUTPUT);
+  pinMode(motor_pin_3, OUTPUT);
+  pinMode(motor_pin_4, OUTPUT);
 }
 
 void Stepper::handle()
 {
   unsigned long now = micros();
-  if (now > this->step_next)
+  if (now > step_next)
   {
-    this->step_next = now + this->step_delay;
-    if (this->step_target > this->step_act)
+    step_next = now + step_delay;
+    if (step_target > step_act)
     {
-      step(++this->step_act);
+      step(++step_act);
     }
-    if (this->step_target < this->step_act)
+    if (step_target < step_act)
     {
-      step(--this->step_act);
+      step(--step_act);
     }
   }
 }
 
 void Stepper::move_abs(int16_t pos)
 {
-  this->step_target = pos;
+  step_target = pos;
 }
 
 void Stepper::move_rel(int16_t steps)
 {
-  this->step_target += steps;
+  step_target += steps;
+}
+
+int16_t Stepper::pos()
+{
+  return (step_act);
 }
 
 bool Stepper::in_target()
 {
-  return (this->step_target == this->step_act);
+  return (step_target == step_act);
 }
 
 void Stepper::wait()
@@ -63,10 +69,11 @@ void Stepper::wait()
 
 void Stepper::reset()
 {
-  this->step_act = 0;
+  step_act = 0;
+  step_target = 0;
 }
 
-void Stepper::calibrate(int range)
+void Stepper::calibrate(int16_t range)
 {
   move_rel(2 * range);
   wait();
@@ -77,8 +84,8 @@ void Stepper::calibrate(int range)
 
 void Stepper::step(int16_t step)
 {
-  switch ((step+16384) % 4) {  // modulo can only handle positive numbers
-    case 0: 
+  switch (step & 0x3) {
+    default:
       digitalWrite(motor_pin_1, HIGH);
       digitalWrite(motor_pin_2, HIGH);
       digitalWrite(motor_pin_3, LOW);
@@ -102,10 +109,5 @@ void Stepper::step(int16_t step)
       digitalWrite(motor_pin_3, LOW);
       digitalWrite(motor_pin_4, HIGH);
       break;
-    default:
-      digitalWrite(motor_pin_1, LOW);
-      digitalWrite(motor_pin_2, LOW);
-      digitalWrite(motor_pin_3, LOW);
-      digitalWrite(motor_pin_4, LOW);
   }
 }
