@@ -1,7 +1,21 @@
 #include <Arduino.h>
 #include "Stepper.h"
 
-Stepper::Stepper(int16_t pin_1, int16_t pin_2, int16_t pin_3, int16_t pin_4)
+// stepping scheme for the motor
+const uint8_t phase_scheme[8][4] = 
+{
+  {1,1,0,0},
+  {0,1,0,0},
+  {0,1,1,0},
+  {0,0,1,0},
+  {0,0,1,1},
+  {0,0,0,1},
+  {1,0,0,1},
+  {1,0,0,0}
+};
+
+// constructor
+Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
 {
   // Initialize variables
   step_act = 0;
@@ -22,12 +36,15 @@ Stepper::Stepper(int16_t pin_1, int16_t pin_2, int16_t pin_3, int16_t pin_4)
   pinMode(motor_pin_4, OUTPUT);
 }
 
+// cyclic handle of motion (call in loop)
 void Stepper::handle()
 {
+  // check if next step can be executed (rate limitation)
   unsigned long now = micros();
   if (now > step_next)
   {
     step_next = now + step_delay;
+    // if necessary, make a step towards target
     if (step_target > step_act)
     {
       step(++step_act);
@@ -39,26 +56,31 @@ void Stepper::handle()
   }
 }
 
+// set new target position
 void Stepper::move_abs(int16_t pos)
 {
   step_target = pos;
 }
 
+// set relative target position
 void Stepper::move_rel(int16_t steps)
 {
   step_target += steps;
 }
 
+// return actual position
 int16_t Stepper::pos()
 {
   return (step_act);
 }
 
+// check if target position reached
 bool Stepper::in_target()
 {
   return (step_target == step_act);
 }
 
+// wait and handle steps until target position reached
 void Stepper::wait()
 {
   while (!in_target())
@@ -67,12 +89,14 @@ void Stepper::wait()
   }
 }
 
+// set actual position to zero
 void Stepper::reset()
 {
   step_act = 0;
   step_target = 0;
 }
 
+// make a calibration until block and return to center position
 void Stepper::calibrate(int16_t range)
 {
   move_rel(2 * range);
@@ -82,33 +106,12 @@ void Stepper::calibrate(int16_t range)
   reset();
 }
 
+// execute one step
 void Stepper::step(int16_t step)
 {
-  switch (step & 0x3)
-  {
-  default:
-    digitalWrite(motor_pin_1, HIGH);
-    digitalWrite(motor_pin_2, HIGH);
-    digitalWrite(motor_pin_3, LOW);
-    digitalWrite(motor_pin_4, LOW);
-    break;
-  case 1:
-    digitalWrite(motor_pin_1, LOW);
-    digitalWrite(motor_pin_2, HIGH);
-    digitalWrite(motor_pin_3, HIGH);
-    digitalWrite(motor_pin_4, LOW);
-    break;
-  case 2:
-    digitalWrite(motor_pin_1, LOW);
-    digitalWrite(motor_pin_2, LOW);
-    digitalWrite(motor_pin_3, HIGH);
-    digitalWrite(motor_pin_4, HIGH);
-    break;
-  case 3:
-    digitalWrite(motor_pin_1, HIGH);
-    digitalWrite(motor_pin_2, LOW);
-    digitalWrite(motor_pin_3, LOW);
-    digitalWrite(motor_pin_4, HIGH);
-    break;
-  }
+  int phase = step & 0x07;
+  digitalWrite(motor_pin_1, phase_scheme[phase][0]);
+  digitalWrite(motor_pin_2, phase_scheme[phase][1]);
+  digitalWrite(motor_pin_3, phase_scheme[phase][2]);
+  digitalWrite(motor_pin_4, phase_scheme[phase][3]);
 }
