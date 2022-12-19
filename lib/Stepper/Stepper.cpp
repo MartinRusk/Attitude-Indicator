@@ -45,11 +45,11 @@ void Stepper::handle()
   {
     step_next = now + step_delay;
     // if necessary, make a step towards target
-    if (step_target > step_act)
+    if ((step_target - step_act) > 0)
     {
       step(++step_act);
     }
-    if (step_target < step_act)
+    if ((step_target - step_act) < 0)
     {
       step(--step_act);
     }
@@ -57,19 +57,19 @@ void Stepper::handle()
 }
 
 // set new target position
-void Stepper::move_abs(int16_t pos)
+void Stepper::move_abs(int32_t pos)
 {
   step_target = pos;
 }
 
 // set relative target position
-void Stepper::move_rel(int16_t steps)
+void Stepper::move_rel(int32_t steps)
 {
   step_target += steps;
 }
 
 // return actual position
-int16_t Stepper::pos()
+int32_t Stepper::pos()
 {
   return (step_act);
 }
@@ -97,7 +97,7 @@ void Stepper::reset()
 }
 
 // make a calibration until block and return to center position
-void Stepper::calibrate(int16_t range)
+void Stepper::calibrate(int32_t range)
 {
   move_rel(2 * range);
   wait();
@@ -106,10 +106,16 @@ void Stepper::calibrate(int16_t range)
   reset();
 }
 
-// execute one step
-void Stepper::step(int16_t step)
+// override stepper frequency
+void Stepper::set_freq(uint16_t freq)
 {
-  int phase = step & 0x07;
+  step_delay = 1000000UL / freq;
+}
+
+// execute one step
+void Stepper::step(int32_t step)
+{
+  int phase = (int) (step & 0x07);
   digitalWrite(motor_pin_1, phase_scheme[phase][0]);
   digitalWrite(motor_pin_2, phase_scheme[phase][1]);
   digitalWrite(motor_pin_3, phase_scheme[phase][2]);

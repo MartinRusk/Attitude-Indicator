@@ -1,15 +1,29 @@
 #include <Arduino.h>
 #include <Stepper.h>
 #include <Servo.h>
+#include <Encoder.h>
+#include <Button.h>
 #include <XPLDirect.h>
 
+// activate test mode (alternative loop function)
+#define TEST 0
+
+// XPLDirect connection
 XPLDirect xp(&Serial);
-Stepper roll(0, 1, 2, 3);
-Stepper pitch(4, 5, 6, 7);
+
+// Stepper motors
+Stepper stpRoll(0, 1, 2, 3);
+Stepper stpPitch(4, 5, 6, 7);
+Stepper stpAltitude(A0, A1, A2, A3);
+
+// Servo drives
 Servo srvSpeed;
 Servo srvVario;
 
-#define TEST 0
+// Input devices (TODO)
+Button btnUp(15);
+Button btnDn(14);
+Encoder encBaro(10, 16, 4);
 
 // Speed Indicator
 #define SPEED_PIN 8
@@ -29,35 +43,55 @@ Servo srvVario;
 #define MAX_PITCH 70
 #define SCALE_PITCH -4
 
-// synchronized variables
-float roll_angle;
-float pitch_angle;
-float indicated_speed;
-float variometer;
+// Altimeter (steps / foot)
+#define SCALE_ALT 4.096
 
+// synchronized variables
+float roll_electric_deg_pilot;
+float pitch_electric_deg_pilot;
+float airspeed_kts_pilot;
+float vvi_fpm_pilot;
+float altitude_ft_pilot;
+
+// commands
+int barometer_down;
+int barometer_up;
+int barometer_std;
+
+// set roll angle (°)
 void set_roll(float angle)
 {
   int16_t pos = (int16_t)(angle * SCALE_ROLL);
   pos = min(max(pos, -MAX_ROLL), MAX_ROLL);
-  roll.move_abs(pos);
+  stpRoll.move_abs(pos);
 }
 
+// set pitch angle (°)
 void set_pitch(float angle)
 {
-  int16_t pos = (int16_t)(angle * SCALE_PITCH);
+  int32_t pos = (int32_t)(angle * SCALE_PITCH);
   pos = min(max(pos, -MAX_PITCH), MAX_PITCH);
-  pitch.move_abs(pos);
+  stpPitch.move_abs(pos);
 }
 
+// handle steppers and wait until pitch and roll settled (fot testing)
 void wait()
 {
-  while (!roll.in_target() || !pitch.in_target())
+  while (!stpRoll.in_target() || !stpPitch.in_target())
   {
-    roll.handle();
-    pitch.handle();
+    stpRoll.handle();
+    stpPitch.handle();
   }
 }
 
+// set altitude (feet)
+void set_altitude(float altitude)
+{
+  int32_t pos = (int32_t)(altitude * SCALE_ALT);
+  stpAltitude.move_abs(pos);
+}
+
+// set airspeed (kts)
 void set_speed(float speed)
 {
   int time;
@@ -76,6 +110,7 @@ void set_speed(float speed)
   srvSpeed.writeMicroseconds(time);
 }
 
+// set vertical speed (fpm)
 void set_vario(float vario)
 {
   int time;
@@ -94,16 +129,16 @@ void set_vario(float vario)
   srvVario.writeMicroseconds(time);
 }
 
+// make a short sweep on the speed indicator
 void sweep_speed()
 {
   float speed = 0.0;
-  while (speed < SPEED_MAX)
+  while (speed < 100)
   {
     set_speed(speed);
     speed += 4.0;
     delay(20);
   }
-  delay(2000);
   while (speed > 0.0)
   {
     set_speed(speed);
@@ -113,16 +148,17 @@ void sweep_speed()
   set_speed(0.0);
 }
 
+// make a short sweep on the variometer
 void sweep_vario()
 {
   float vario = 0.0;
-  while (vario < VARIO_MAX)
+  while (vario < 500)
   {
     set_vario(vario);
     vario += 50.0;
     delay(20);
   }
-  while (vario > VARIO_MIN)
+  while (vario > -500)
   {
     set_vario(vario);
     vario -= 50.0;
@@ -137,18 +173,36 @@ void sweep_vario()
   set_vario(0.0);
 }
 
+// make a short sweep on the altimeter
+void sweep_altitude()
+{
+  set_altitude(500.0);
+  stpAltitude.wait();
+  set_altitude(0.0);
+  stpAltitude.wait();
+}
+
+// initialization
 void setup()
 {
-  // initialize the serial port
+  // initialize the serial port and register device
   Serial.begin(XPLDIRECT_BAUDRATE);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
   xp.begin("Sixpack");
 #pragma GCC diagnostic pop
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot", XPL_READ, 50, 0.2, &roll_angle);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot", XPL_READ, 50, 0.5, &pitch_angle);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.5, &indicated_speed);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/vvi_fpm_pilot", XPL_READ, 50, 0.5, &variometer);
+
+  // register DataRefs
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot", XPL_READ, 50, 0.2, &roll_electric_deg_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot", XPL_READ, 50, 0.5, &pitch_electric_deg_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.5, &airspeed_kts_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/vvi_fpm_pilot", XPL_READ, 50, 1.0, &vvi_fpm_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/altitude_ft_pilot", XPL_READ, 50, 1.0, &altitude_ft_pilot);
+
+  // register Commands
+  barometer_down = xp.registerCommand("sim/instruments/barometer_down");
+  barometer_up = xp.registerCommand("sim/instruments/barometer_up");
+  barometer_std = xp.registerCommand("sim/instruments/barometer_std");
 
   // servos
   srvSpeed.attach(SPEED_PIN);
@@ -156,14 +210,23 @@ void setup()
   srvVario.attach(VARIO_PIN);
   srvVario.writeMicroseconds((MAX_PULSE_WIDTH + MIN_PULSE_WIDTH) / 2);
 
-  // calibrate
-  roll.calibrate(CAL_ROLL);
-  pitch.calibrate(CAL_PITCH);
+  // calibrate attitude indicator
+  stpRoll.set_freq(800);
+  stpRoll.calibrate(CAL_ROLL);
+  stpPitch.set_freq(800);
+  stpPitch.calibrate(CAL_PITCH);
 
+  // initialize altimeter
+  stpAltitude.set_freq(800);
+  stpAltitude.reset();
+
+  // Sweep instruments once to check function
   sweep_speed();
   sweep_vario();
+  sweep_altitude();
 }
 
+// Main loop
 #if TEST == 1
 void loop()
 {
@@ -190,12 +253,51 @@ void loop()
 #else
 void loop()
 {
-  xp.xloop();
-  set_roll(roll_angle);
-  set_pitch(pitch_angle);
-  set_speed(indicated_speed);
-  set_vario(variometer);
-  roll.handle();
-  pitch.handle();
+  // if XPLDirect not connected: zero instruments and enable adjustment for altimeter
+  if (!xp.xloop())
+  {
+    roll_electric_deg_pilot = 0.0;
+    pitch_electric_deg_pilot = 0.0;
+    airspeed_kts_pilot = 0.0;
+    vvi_fpm_pilot = 0.0;
+    altitude_ft_pilot = 0.0;
+    // use encoder for zero adjustment
+    if (encBaro.up() || btnUp.is_pressed())
+    {
+      altitude_ft_pilot = 20;
+    }
+    if (encBaro.down() || btnDn.is_pressed())
+    {
+      altitude_ft_pilot = -20;
+    }
+    // wait until altitude corrected
+    set_altitude(altitude_ft_pilot);
+    stpAltitude.wait();
+    stpAltitude.reset();
+  }
+  else
+  {
+    // Encoder to adjust barometer up/down
+    if (encBaro.up())
+    {
+      xp.commandTrigger(barometer_up);
+    }
+    if (encBaro.down())
+    {
+      xp.commandTrigger(barometer_down);
+    }
+  }
+
+  // evaluate DataRefs
+  set_roll(roll_electric_deg_pilot);
+  set_pitch(pitch_electric_deg_pilot);
+  set_speed(airspeed_kts_pilot);
+  set_vario(vvi_fpm_pilot);
+  set_altitude(altitude_ft_pilot);
+
+  // handle steppers
+  stpRoll.handle();
+  stpPitch.handle();
+  stpAltitude.handle();
 }
 #endif
