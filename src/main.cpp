@@ -22,16 +22,16 @@ Servo srvVario;
 
 // Input devices (TODO)
 Button btnUp(15);
-Button btnDn(14);
-Encoder encBaro(10, 16, 4);
+Button btnDn(16);
+Encoder encBaro(8, 9, 4);
 
 // Speed Indicator
-#define SPEED_PIN 8
+#define SPEED_PIN 10
 #define SPEED_MIN 40.0
 #define SPEED_MAX 175.0
 
 // Variometer
-#define VARIO_PIN 9
+#define VARIO_PIN 14
 #define VARIO_MIN -1800.0
 #define VARIO_MAX 1800.0
 
@@ -299,5 +299,8 @@ void loop()
   stpRoll.handle();
   stpPitch.handle();
   stpAltitude.handle();
+
+  // handle encoder
+  encBaro.handle();
 }
 #endif
